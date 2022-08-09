@@ -25,9 +25,10 @@ orderClients.push(new FaunaOrderListener(orderUpdates));
 const allOrders = {};
 
 /* Setup Fauna client */
+const q = faunadb.query;
 let domainRegion = "";
 if (process.env.FAUNA_REGION) domainRegion = `${process.env.FAUNA_REGION}.`;
-this.faunaClient = new faunadb.Client({ 
+client = new faunadb.Client({ 
 	secret: process.env.FAUNADB_API_KEY,
 	domain: `db.${domainRegion}fauna.com`,  
 	scheme: 'https',
