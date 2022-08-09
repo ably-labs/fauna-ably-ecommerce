@@ -35,13 +35,19 @@ header {
   background-color: var(--primary);
 }
 
-td { 
-  padding-left: 10px;
+nav {
+  display: flex;
+  align-items: center;
 }
 
-.orders-link {
-  border-right-style: groove;
-  padding-right: 10px;
+.orders {
+  margin-right: 1em;
+  font-weight: bold;
+  color: transparent;
+}
+
+.orders:hover {
+  color: var(--secondary-hover);
 }
 
 .login-form {
@@ -87,14 +93,14 @@ td {
   border-right: 1px solid var(--primary)
 }
 
-.items a {
+.items span {
   display: block;
   font-weight: bold;
   color: var(--primary);
   padding: 1rem;
 }
 
-.items a:hover {
+.items span:hover {
   color: var(--primary-hover);
   background-color: var(--light);
 }
@@ -119,6 +125,7 @@ td {
 
 .item-details {
   width: 100%;
+  max-width: 800px;
 }
 
 .item-title {
