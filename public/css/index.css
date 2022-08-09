@@ -81,6 +81,7 @@ td {
 
 .items {
   list-style: none;
+  min-width: 200px;
   margin: 0;
   padding: 0;
   border-right: 1px solid var(--primary)
