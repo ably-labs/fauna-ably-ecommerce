@@ -34,7 +34,7 @@
     <div id="loader" class="loader" style="display: none"></div>
     <p id="intro-section">Select a product from the sidebar to see details</p>
     <div id="item-details" class="item-details" style="display: none">
-      <img id="item-img" src="http://placekitten.com/600/400" class="item-img">
+      <img id="item-image" src="http://placekitten.com/600/400" class="item-img">
       <div class="item-info">
         <h2 id="title" class="item-title"></h2>
         <h3 id="description" class="item-description"></h3>
@@ -63,7 +63,7 @@
 
     const realtime = new Ably.Realtime({ authUrl: '/auth' });
     let productChannel;
-    const productsChannel = realtime.channels.get('products', { params: { rewind: '1' } });
+    const productsChannel = realtime.channels.get('app:products', { params: { rewind: '1' } });
 
     let products;
     productsChannel.subscribe((msg) => {
@@ -90,7 +90,7 @@
       // Update the url to the new item, so if we refresh the page this item loads again
       if (products) window.history.pushState('page2', products[productID], '?product=' + productID);
 
-      productChannel = realtime.channels.get(`product:${productID}`, { params: { rewind: '1' } });
+      productChannel = realtime.channels.get(`app:product:${productID}`, { params: { rewind: '1' } });
       productChannel.subscribe((msg) => {
         document.getElementById("loader").style.display = "none";
         document.getElementById("item-details").style.display = "flex";
@@ -113,7 +113,7 @@
       loadProduct(productId);
     }
 
-    const orderChannel = realtime.channels.get('submit_order');
+    const orderChannel = realtime.channels.get('app:submit_order');
 
     function order() {
       // customer Id, order

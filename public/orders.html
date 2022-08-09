@@ -64,7 +64,7 @@
     const realtime = new Ably.Realtime({ authUrl: '/auth' });
     let orderChannel;
 
-    const ordersChannel = realtime.channels.get(`orders:${customerId}`, { params: { rewind: '1' } });
+    const ordersChannel = realtime.channels.get(`app:orders:${customerId}`, { params: { rewind: '1' } });
 
     let orders;
     ordersChannel.subscribe((msg) => {
@@ -89,7 +89,7 @@
 
       if (orders) window.history.pushState('page2', orders[orderID], '?order=' + orderID);
 
-      orderChannel = realtime.channels.get(`order:${customerId}:${orderId}`, { params: { rewind: '1' } });
+      orderChannel = realtime.channels.get(`app:order:${customerId}:${orderId}`, { params: { rewind: '1' } });
       orderChannel.subscribe((msg) => {
         document.getElementById("loader").style.display = "none";
         document.getElementById("item-details").style.display = "flex";

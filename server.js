@@ -9,7 +9,7 @@ const express = require('express'),
       cookieParser = require('cookie-parser');
 
 app.use(cookieParser());
-
+app.use(express.static(__dirname + '/public'));
 app.get('/auth', function (req, res) {
   var tokenParams;
   if (req.cookies.username) {
