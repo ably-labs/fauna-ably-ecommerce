@@ -1,31 +1,28 @@
 <html>
-  <head>
-    <script src="https://cdn.ably.io/lib/ably.min-1.js" type="text/javascript"></script>
-    <link href='https://fonts.googleapis.com/css?family=Actor' rel='stylesheet'>
-    <link rel="stylesheet" type="text/css" href="/css/index.css">
-  </head>
-  <body>
-    <header>
-      <a class="home" href="/"><h1>💸 Buy Things Inc</h1></a>
-      <nav>
-        <table>
-          <tr>
-            <td class="orders-link">
-              <a href="/orders">Your orders</a>
-            </td>
-            <td>
-              <form class="login-form" action="/login" id="panel-anonymous">
-                <input type="text" name="username" placeholder="Enter your username" class="login-text">
-                <input type="submit" value="Login" class="login-submit">
-              </form>
 
-              <div id="panel-logged-in">
-                You are logged in. <a href="/logout">Log out</a>
-              </div>
-            </td>
-          </tr>
-        </table>
-      </nav>
+<head>
+  <script src="https://cdn.ably.io/lib/ably.min-1.js" type="text/javascript"></script>
+  <link href='https://fonts.googleapis.com/css?family=Actor' rel='stylesheet'>
+  <link rel="stylesheet" type="text/css" href="/css/index.css">
+</head>
+
+<body>
+  <header>
+    <a class="home" href="/">
+      <h1>💸 Buy Things Inc</h1>
+    </a>
+    <nav>
+      <a class="orders" href="/orders">Your orders</a>
+
+      <form class="login-form" action="/login" id="panel-anonymous">
+        <input type="text" name="username" placeholder="Enter your username" class="login-text">
+        <input type="submit" value="Login" class="login-submit">
+      </form>
+
+      <div id="panel-logged-in">
+        You are logged in. <a href="/logout">Log out</a>
+      </div>
+    </nav>
   </header>
 
   <ul id="orders" class="items"></ul>
@@ -51,80 +48,81 @@
     <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
   </footer>
 
-  </body>
+</body>
 
-  <script type="text/javascript">
-    let orderId;
-    let customerId;
+<script type="text/javascript">
+  let orderId;
+  let customerId;
 
-    const cookiesValue = `; ${document.cookie}`;
-    const userIdParts = cookiesValue.split(`; userId=`);
-    if (userIdParts.length === 2) customerId = userIdParts.pop().split(';').shift();
+  const cookiesValue = `; ${document.cookie}`;
+  const userIdParts = cookiesValue.split(`; userId=`);
+  if (userIdParts.length === 2) customerId = userIdParts.pop().split(';').shift();
 
-    const realtime = new Ably.Realtime({ authUrl: '/auth' });
-    let orderChannel;
+  const realtime = new Ably.Realtime({ authUrl: '/auth' });
+  let orderChannel;
 
-    const ordersChannel = realtime.channels.get(`app:orders:${customerId}`, { params: { rewind: '1' } });
+  const ordersChannel = realtime.channels.get(`app:orders:${customerId}`, { params: { rewind: '1' } });
 
-    let orders;
-    ordersChannel.subscribe((msg) => {
-      const ordersContainer = document.getElementById('orders');
-      ordersContainer.innerHTML = '';
-      orders = msg.data;
-      for (let orderID of orders) {
-        let item = document.createElement("li");
-        item.innerHTML = `<p style="cursor: pointer;" onclick="loadOrder('${orderID}')">${orderID}</p>`;
-        ordersContainer.appendChild(item);
+  let orders;
+  ordersChannel.subscribe((msg) => {
+    const ordersContainer = document.getElementById('orders');
+    ordersContainer.innerHTML = '';
+    orders = msg.data;
+    for (let orderID of orders) {
+      let item = document.createElement("li");
+      item.innerHTML = `<span onclick="loadOrder('${orderID}')">${orderID}</span>`;
+      ordersContainer.appendChild(item);
+    }
+  });
+
+  function loadOrder(orderID) {
+    document.getElementById("intro-section").style.display = "none";
+    document.getElementById("loader").style.display = "flex";
+    document.getElementById("item-details").style.display = "none";
+    if (orderChannel != null) {
+      orderChannel.detach();
+    }
+    orderId = orderID;
+
+    if (orders) window.history.pushState('page2', orders[orderID], '?order=' + orderID);
+
+    orderChannel = realtime.channels.get(`app:order:${customerId}:${orderId}`, { params: { rewind: '1' } });
+    orderChannel.subscribe((msg) => {
+      document.getElementById("loader").style.display = "none";
+      document.getElementById("item-details").style.display = "flex";
+      document.getElementById("title").textContent = orderId;
+      document.getElementById("date").textContent = new Date(msg.data.creationDate['@ts']).toLocaleString();
+
+      const city = msg.data.deliveryAddress.city;
+      const state = msg.data.deliveryAddress.state;
+      const street = msg.data.deliveryAddress.street;
+      const zipCode = msg.data.deliveryAddress.zipCode;
+      document.getElementById("delivery-address").textContent = `${street} \n ${city} \n ${state} \n ${zipCode}`;
+      let list = document.getElementById('cart');
+      list.innerHTML = "";
+      const cart = msg.data.cart;
+      let totalPrice = 0;
+      for (let i = 0; i < cart.length; i++) {
+        let item = cart[i];
+        let entry = document.createElement('li');
+        totalPrice += item.price;
+        let productName = item.name || item.product['@ref'].id;
+        entry.appendChild(document.createTextNode(`product: ${productName} - price: ${item.price} - quantity: ${item.quantity}`));
+        list.appendChild(entry);
       }
+      document.getElementById("total-price").textContent = totalPrice;
     });
-   
-    function loadOrder(orderID) {
-      document.getElementById("intro-section").style.display = "none";
-      document.getElementById("loader").style.display = "flex";
-      document.getElementById("item-details").style.display = "none";
-      if (orderChannel != null) {
-        orderChannel.detach();
-      }
-      orderId = orderID;
+  }
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('order')) {
+    let orderId = urlParams.get('order');
+    loadOrder(orderId);
+  }
 
-      if (orders) window.history.pushState('page2', orders[orderID], '?order=' + orderID);
+  /* Hide or show the logged in / anonymous panels based on the session cookie */
+  let loggedIn = document.cookie.indexOf('username') >= 0;
+  document.getElementById('panel-anonymous').setAttribute('style', "display: " + (loggedIn ? 'none' : 'flex'));
+  document.getElementById('panel-logged-in').setAttribute('style', "display: " + (loggedIn ? 'inline' : 'none'));
+</script>
 
-      orderChannel = realtime.channels.get(`app:order:${customerId}:${orderId}`, { params: { rewind: '1' } });
-      orderChannel.subscribe((msg) => {
-        document.getElementById("loader").style.display = "none";
-        document.getElementById("item-details").style.display = "flex";
-        document.getElementById("title").textContent = orderId;
-        document.getElementById("date").textContent = new Date(msg.data.creationDate['@ts']).toLocaleString();
-
-        const city = msg.data.deliveryAddress.city;
-        const state = msg.data.deliveryAddress.state;
-        const street = msg.data.deliveryAddress.street;
-        const zipCode = msg.data.deliveryAddress.zipCode;
-        document.getElementById("delivery-address").textContent = `${street} \n ${city} \n ${state} \n ${zipCode}`;
-        let list = document.getElementById('cart');
-        list.innerHTML = "";
-        const cart = msg.data.cart;
-        let totalPrice = 0;
-        for (let i = 0; i < cart.length; i++) {
-          let item = cart[i];
-          let entry = document.createElement('li');
-          totalPrice += item.price;
-          let productName = item.name || item.product['@ref'].id;
-          entry.appendChild(document.createTextNode(`product: ${productName} - price: ${item.price} - quantity: ${item.quantity}`));
-          list.appendChild(entry);
-        }
-        document.getElementById("total-price").textContent = totalPrice;
-      });
-    }
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('order')) {
-      let orderId = urlParams.get('order');
-      loadOrder(orderId);
-    }
-
-    /* Hide or show the logged in / anonymous panels based on the session cookie */
-    let loggedIn = document.cookie.indexOf('username') >= 0;
-    document.getElementById('panel-anonymous').setAttribute('style', "display: " + (loggedIn ? 'none' : 'flex'));
-    document.getElementById('panel-logged-in').setAttribute('style', "display: " + (loggedIn ? 'inline' : 'none'));
-  </script>
 </html>
