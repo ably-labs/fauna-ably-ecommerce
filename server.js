@@ -13,13 +13,13 @@ app.use(cookieParser());
 app.get('/auth', function (req, res) {
   var tokenParams;
   if (req.cookies.username) {
-    const ordersPattern = `orders:${req.cookies.userId}`;
-    const orderPattern = `order:${req.cookies.userId}:*`;
+    const ordersPattern = `app:orders:${req.cookies.userId}`;
+    const orderPattern = `app:order:${req.cookies.userId}:*`;
     tokenParams = {
       'capability': { 
-        'product:*': ['subscribe'],
-        'products': ['subscribe'],
-        'submit_order': ['publish'],
+        'app:product:*': ['subscribe'],
+        'app:products': ['subscribe'],
+        'app:submit_order': ['publish'],
        },
       'clientId': req.cookies.username
     };
@@ -28,7 +28,7 @@ app.get('/auth', function (req, res) {
   } else {
     /* Issue a token request with only subscribe privileges for products */
     tokenParams = {
-      'capability': { 'product:*': ['subscribe'], 'products': ['subscribe'] }
+      'capability': { 'app:product:*': ['subscribe'], 'app:products': ['subscribe'] }
     };
   }
 
@@ -69,6 +69,4 @@ app.get('/logout', function (req, res) {
   res.redirect('/');
 });
 
-app.listen(3000, function () {
-  console.log('Web server listening on port 3000');
-});
+app.listen(process.env.PORT || 3000);

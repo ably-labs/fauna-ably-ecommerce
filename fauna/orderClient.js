@@ -10,10 +10,11 @@ for clients to subscribe to and update accordingly
 class FaunaOrderListener {
 	constructor(callback) {
 		// Setup Fauna
+		let domainRegion = "";
+		if (process.env.FAUNA_REGION) domainRegion = `${process.env.FAUNA_REGION}.`;
 		this.faunaClient = new faunadb.Client({ 
 			secret: process.env.FAUNADB_API_KEY,
-			// Change this to match whichever region your instance is in
-			domain: 'db.eu.fauna.com',  
+			domain: `db.${domainRegion}fauna.com`,  
 			scheme: 'https',
 		});
 		this.orders = {};
@@ -69,7 +70,7 @@ class FaunaOrderListener {
         const userId = data.customer.value.id;
 		/* The channel structure allows for limiting users to only be able to access channels with
 		their userId included, ensuring no one can see other user's orders and details */
-		this.ablyClient.channels.get(`order:${userId}:${orderId}`).publish(name, data);
+		this.ablyClient.channels.get(`app:order:${userId}:${orderId}`).publish(name, data);
 	}
 }
 

@@ -6,10 +6,11 @@ const q = faunadb.query;
 class FaunaProductListener {
 	constructor(callback) {
 		// Setup Fauna
+		let domainRegion = "";
+		if (process.env.FAUNA_REGION) domainRegion = `${process.env.FAUNA_REGION}.`;
 		this.faunaClient = new faunadb.Client({ 
 			secret: process.env.FAUNADB_API_KEY,
-			// Change this to match whichever region your instance is in
-			domain: 'db.eu.fauna.com',  
+			domain: `db.${domainRegion}fauna.com`,  
 			scheme: 'https',
 		});
 		this.products = {};
@@ -54,7 +55,7 @@ class FaunaProductListener {
 	}
 
 	publishToAbly(productId, name, data) {
-		this.ablyClient.channels.get(`product:${productId}`).publish(name, data);
+		this.ablyClient.channels.get(`app:product:${productId}`).publish(name, data);
 	}
 }
 

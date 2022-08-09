@@ -6,8 +6,8 @@ const FaunaOrderListener = require('./orderClient.js');
 require('dotenv').config();
 
 const ablyClient = new Ably.Realtime(process.env.ABLY_API_KEY);
-const productsChannel = ablyClient.channels.get('products');
-const ordersChannel = ablyClient.channels.get('submit_order');
+const productsChannel = ablyClient.channels.get('app:products');
+const ordersChannel = ablyClient.channels.get('app:submit_order');
 
 /* Listen for new order requests from clients */
 ordersChannel.subscribe((msg) => {
@@ -25,10 +25,11 @@ orderClients.push(new FaunaOrderListener(orderUpdates));
 const allOrders = {};
 
 /* Setup Fauna client */
-const q = faunadb.query;
-let client = new faunadb.Client({ 
+let domainRegion = "";
+if (process.env.FAUNA_REGION) domainRegion = `${process.env.FAUNA_REGION}.`;
+this.faunaClient = new faunadb.Client({ 
 	secret: process.env.FAUNADB_API_KEY,
-	domain: 'db.eu.fauna.com',  
+	domain: `db.${domainRegion}fauna.com`,  
 	scheme: 'https',
 });
 
@@ -135,7 +136,7 @@ function orderUpdates(orderId, order) {
 	const userId = order.customer.value.id;
 	if (!allOrders[userId]) allOrders[userId] = [];
 	allOrders[userId].push(orderId);
-	ablyClient.channels.get(`orders:${userId}`).publish(`order`, allOrders[userId]);
+	ablyClient.channels.get(`app:orders:${userId}`).publish(`order`, allOrders[userId]);
 }
 
 function submitOrder(customerId, orders) {
