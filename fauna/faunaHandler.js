@@ -17,7 +17,6 @@ ordersChannel.subscribe((msg) => {
 /* We need scaling clients to avoid hitting Fauna connection limits */
 const clients = [];
 clients.push(new FaunaProductListener(productUpdates));
-const products = [];
 const productWithName = {};
 
 const orderClients = [];
@@ -53,14 +52,10 @@ function listenForProductChanges () {
 	.on('set', (set) => {
 		let productId = set.document.ref.value.id;
 		if (set.action == 'add') {
-			if (products.includes(productId)) return;
 			addProduct(productId);
 		} else {
-			const index = products.indexOf(productId);
-			if (index > -1) {
-				products.splice(index, 1);
-			}
 			delete productWithName[productId];
+			productsChannel.publish('products', productWithName);
 		}
 	})
 	.on('error', (error) => {
@@ -74,7 +69,6 @@ function listenForProductChanges () {
 listenForProductChanges();
 
 function addProduct(productId) {
-	products.push(productId);
 	for (const client of clients) {
 		if (Object.keys(client.products).length < 50) {
 			client.addNewProduct(productId);
