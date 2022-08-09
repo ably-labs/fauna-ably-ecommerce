@@ -1,0 +1,135 @@
+<html>
+  <head>
+    <script src="https://cdn.ably.io/lib/ably.min-1.js" type="text/javascript"></script>
+    <link href='https://fonts.googleapis.com/css?family=Actor' rel='stylesheet'>
+    <link rel="stylesheet" type="text/css" href="/css/index.css">
+  </head>
+  <body>
+    <header>
+      <a class="home" href="/"><h1>💸 Buy Things Inc</h1></a>
+      <nav>
+        <table>
+          <tr>
+            <td class="orders-link">
+              <a href="/orders">Your orders</a>
+            </td>
+            <td>
+              <form class="login-form" action="/login" id="panel-anonymous">
+                <input type="text" name="username" placeholder="Enter your username" class="login-text">
+                <input type="submit" value="Login" class="login-submit">
+              </form>
+
+              <div id="panel-logged-in">
+                You are logged in. <a href="/logout">Log out</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </nav>
+  </header>
+
+  <ul id="products" class="items"></ul>
+
+  <main class="item">
+    <div id="loader" class="loader" style="display: none"></div>
+    <p id="intro-section">Select a product from the sidebar to see details</p>
+    <div id="item-details" class="item-details" style="display: none">
+      <img id="item-img" src="http://placekitten.com/600/400" class="item-img">
+      <div class="item-info">
+        <h2 id="title" class="item-title"></h2>
+        <h3 id="description" class="item-description"></h3>
+        <p class="item-price">£<span id="price"></span></p>
+        <button onclick="order()" id="buy-button" class="buy">Buy now</button>
+        <p class="item-stock">Stock: <span id="quantity"></span></p>
+        <p class="item-stock" id="login-button-hint">Login to add items to your cart</p>
+      </div>
+    </div>
+  </main>
+  <footer>
+    Made with
+    <a href="https://www.ably.com"><img src="/images/ably-logo.png" alt="Ably logo"></a> and
+    <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
+  </footer>
+
+  </body>
+
+  <script type="text/javascript">
+    let productId;
+    let customerId;
+
+    const cookiesValue = `; ${document.cookie}`;
+    const userIdParts = cookiesValue.split(`; userId=`);
+    if (userIdParts.length === 2) customerId = userIdParts.pop().split(';').shift();
+
+    const realtime = new Ably.Realtime({ authUrl: '/auth' });
+    let productChannel;
+    const productsChannel = realtime.channels.get('products', { params: { rewind: '1' } });
+
+    let products;
+    productsChannel.subscribe((msg) => {
+      const productsContainer = document.getElementById('products');
+      productsContainer.innerHTML = '';
+      products = msg.data;
+      for (let productID in products) {
+        let item = document.createElement("li");
+        item.innerHTML = `<p style="cursor: pointer;" onclick="loadProduct('${productID}')">${products[productID]}</p>`;
+        productsContainer.appendChild(item);
+      }
+    });
+   
+    // Load a new product to display from Ably, and subscribe to any changes
+    function loadProduct(productID) {
+      document.getElementById("intro-section").style.display = "none";
+      document.getElementById("loader").style.display = "flex";
+      document.getElementById("item-details").style.display = "none";
+      if (productChannel != null) {
+        productChannel.detach();
+      }
+      productId = productID;
+
+      // Update the url to the new item, so if we refresh the page this item loads again
+      if (products) window.history.pushState('page2', products[productID], '?product=' + productID);
+
+      productChannel = realtime.channels.get(`product:${productID}`, { params: { rewind: '1' } });
+      productChannel.subscribe((msg) => {
+        document.getElementById("loader").style.display = "none";
+        document.getElementById("item-details").style.display = "flex";
+        document.getElementById("title").textContent = msg.data.name;
+        document.getElementById("description").textContent = msg.data.description;
+        document.getElementById("quantity").textContent = msg.data.quantity;
+        document.getElementById("price").textContent = msg.data.price;
+        if (msg.data.image) {
+          document.getElementById("item-image").src = msg.data.image;
+        } else {
+          document.getElementById("item-image").src = 'http://placekitten.com/600/400';
+        }
+      });
+    }
+
+    // If there is a param for the product to load in the URL, load it
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('product')) {
+      let productId = urlParams.get('product');
+      loadProduct(productId);
+    }
+
+    const orderChannel = realtime.channels.get('submit_order');
+
+    function order() {
+      // customer Id, order
+      orderChannel.publish(customerId, [
+        {
+          "productId": productId,
+          "quantity": 1
+        }
+      ]);
+    }
+
+    /* Hide or show the logged in / anonymous panels based on the session cookie */
+    let loggedIn = document.cookie.indexOf('username') >= 0;
+    document.getElementById('panel-anonymous').setAttribute('style', "display: " + (loggedIn ? 'none' : 'flex'));
+    document.getElementById('panel-logged-in').setAttribute('style', "display: " + (loggedIn ? 'inline' : 'none'));
+    document.getElementById('buy-button').setAttribute('style', "display: " + (loggedIn ? 'flex' : 'none'));
+    document.getElementById('login-button-hint').setAttribute('style', "display: " + (loggedIn ? 'none' : 'block'));
+  </script>
+</html>
