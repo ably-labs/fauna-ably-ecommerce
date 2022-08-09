@@ -60,6 +60,7 @@ function listenForProductChanges () {
 			if (index > -1) {
 				products.splice(index, 1);
 			}
+			delete productWithName[productId];
 		}
 	})
 	.on('error', (error) => {
