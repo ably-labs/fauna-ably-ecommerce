@@ -20,7 +20,7 @@ Once you have a database, create an API key for it with admin privilege by going
 
 Add this key to a `.env` file within the base of this directory, as `FAUNADB_API_KEY`.
 
-Finally, we need to create a new Index in Fauna, which we can use to ensure we don't get customers with duplicate usernames. Within the Fauna database's Shell tab, run the following query:
+Next, we need to create a new Index in Fauna, which we can use to ensure we don't get customers with duplicate usernames. Within the Fauna database's Shell tab, run the following query:
 
 ```sh
 CreateIndex({
@@ -30,6 +30,81 @@ CreateIndex({
   terms: [{field: ["data", "username"]}],
   unique: true,
 })
+```
+
+Finally, we will be creating an additional function in Fauna to allow us to make stock changes on items without risking dropping below 0 stock. This will be useful for simulating stock changing for customers, as though other customers were buying items and stock was coming back in.
+
+In the Functions tab of Fauna, create a new function called `increment_stock`, and add the following code to it:
+
+```
+Query(
+  Lambda(
+    "products",
+    Let(
+      {
+        products: Map(
+          Var("products"),
+          Lambda(
+            "requestedProduct",
+            Let(
+              {
+                product: Get(
+                  Ref(
+                    Collection("products"),
+                    Select("productId", Var("requestedProduct"))
+                  )
+                )
+              },
+              {
+                ref: Select("ref", Var("product")),
+                currentQuantity: Select(["data", "quantity"], Var("product")),
+                requestedQuantity: Select(["quantity"], Var("requestedProduct"))
+              }
+            )
+          )
+        )
+      },
+      Do(
+        Foreach(
+          Var("products"),
+          Lambda(
+            "product",
+            If(
+              LTE(
+                Select("requestedQuantity", Var("product")),
+                Select("currentQuantity", Var("product"))
+              ),
+              Var("product"),
+              Abort(
+                Concat([
+                  "Stock quantity for Product [",
+                  Select(["ref", "id"], Var("product")),
+                  "] not enough – requested at [",
+                  ToString(Time("now")),
+                  "]"
+                ])
+              )
+            )
+          )
+        ),
+        Foreach(
+          Var("products"),
+          Lambda(
+            "product",
+            Update(Select("ref", Var("product")), {
+              data: {
+                quantity: Add(
+                  Select("currentQuantity", Var("product")),
+                  Select("requestedQuantity", Var("product"))
+                )
+              }
+            })
+          )
+        )
+      )
+    )
+  )
+)
 ```
 
 ### Setup Ably Account

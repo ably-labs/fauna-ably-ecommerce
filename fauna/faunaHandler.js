@@ -9,6 +9,9 @@ const ablyClient = new Ably.Realtime(process.env.ABLY_API_KEY);
 const productsChannel = ablyClient.channels.get('app:products');
 const ordersChannel = ablyClient.channels.get('app:submit_order');
 
+// Adjust for how regularly automatic stock changes occur
+const RATE_OF_STOCK_CHANGE_SECONDS = 10;
+
 /* Listen for new order requests from clients */
 ordersChannel.subscribe((msg) => {
 	submitOrder(msg.name, msg.data);
@@ -101,7 +104,6 @@ function listenForOrderChanges () {
 	const ref = q.Documents(q.Collection("orders"));
 	let stream = client.stream.document(ref)
 	.on('set', (set) => {
-		console.log(set.document);
 		let orderId = set.document.ref.value.id;
 		if (set.action == 'add') {
 			addOrder(orderId);
@@ -145,8 +147,33 @@ function submitOrder(customerId, orders) {
 	  err.name,
 	  err.message,
 	  err.errors()[0].description,
-	))
+	));
 }
+let stockChange = 10;
+function incrementStock(quantity) {
+	let productsToIncrement = [];
+	for (const key in productWithName) {
+		productsToIncrement.push({ productId: key, quantity: quantity });
+	}
+	client.query(
+		q.Call('increment_stock', productsToIncrement)
+	  )
+	  .then((ret) => console.log(ret))
+	  .catch((err) => console.error(
+		'Error: [%s] %s: %s',
+		err.name,
+		err.message,
+		err.errors()[0].description,
+	  ))
+}
+setInterval(() => { 
+	if (stockChange > 0) {
+		stockChange = 0 - stockChange + Math.floor(Math.random() * 10);
+	} else {
+		stockChange = 10;
+	}
+	incrementStock(stockChange);
+}, RATE_OF_STOCK_CHANGE_SECONDS * 1000);
 
 /* Customer functions */
 async function createOrFindCustomer(username) {
