@@ -69,8 +69,10 @@
     ordersContainer.innerHTML = '';
     orders = msg.data;
     for (let orderID of orders) {
+      let activeText = '';
+      if (orderId == orderID) activeText = 'active';
       let item = document.createElement("li");
-      item.innerHTML = `<span onclick="loadOrder('${orderID}')">${orderID}</span>`;
+      item.innerHTML = `<span id="orders-${orderID}" class="${activeText}" onclick="loadOrder('${orderID}')">${orderID}</span>`;
       ordersContainer.appendChild(item);
     }
   });
@@ -84,7 +86,15 @@
     }
     orderId = orderID;
 
-    if (orders) window.history.pushState('page2', orders[orderID], '?order=' + orderID);
+    if (orders) {
+      window.history.pushState('page2', orders[orderID], '?order=' + orderID);
+      const activeSidebarItem = document.getElementsByClassName('active');
+      for (let i=0; i < activeSidebarItem.length; i++) {
+        activeSidebarItem[i].className = activeSidebarItem[0].className.replace("active", "");
+      }
+      const newActiveItem = document.getElementById(`orders-${orderID}`);
+      newActiveItem.className += "active";
+    }
 
     orderChannel = realtime.channels.get(`app:order:${customerId}:${orderId}`, { params: { rewind: '1' } });
     orderChannel.subscribe((msg) => {

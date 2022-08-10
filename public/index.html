@@ -68,8 +68,10 @@
     productsContainer.innerHTML = '';
     products = msg.data;
     for (let productID in products) {
+      let activeText = '';
+      if (productID == productId) activeText = 'active';
       let item = document.createElement("li");
-      item.innerHTML = `<span onclick="loadProduct('${productID}')">${products[productID]}</span>`;
+      item.innerHTML = `<span id="products-${productID}" class="${activeText}" onclick="loadProduct('${productID}')">${products[productID]}</span>`;
       productsContainer.appendChild(item);
     }
   });
@@ -85,7 +87,15 @@
     productId = productID;
 
     // Update the url to the new item, so if we refresh the page this item loads again
-    if (products) window.history.pushState('page2', products[productID], '?product=' + productID);
+    if (products) {
+      window.history.pushState('page2', products[productID], '?product=' + productID);
+      const activeSidebarItem = document.getElementsByClassName('active');
+      for (let i=0; i < activeSidebarItem.length; i++) {
+        activeSidebarItem[i].className = activeSidebarItem[0].className.replace("active", "");
+      }
+      const newActiveItem = document.getElementById(`products-${productID}`);
+      newActiveItem.className += "active";
+    }
 
     productChannel = realtime.channels.get(`app:product:${productID}`, { params: { rewind: '1' } });
     productChannel.subscribe((msg) => {

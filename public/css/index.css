@@ -1,8 +1,8 @@
 :root {
   --primary: #575fcf;
   --primary-hover: #3c40c6;
-  --secondary: #ffdd59;
-  --secondary-hover: #ffd32a;
+  --secondary: #ffde599b;
+  --secondary-hover: #ffd42a;
   --dark: #1e272e;
   --light: #f1f1f1;
 }
@@ -98,11 +98,16 @@ nav {
   font-weight: bold;
   color: var(--primary);
   padding: 1rem;
+  cursor: pointer;
 }
 
 .items span:hover {
   color: var(--primary-hover);
   background-color: var(--light);
+}
+
+.items .active {
+  background-color: var(--light)
 }
 
 .item {
