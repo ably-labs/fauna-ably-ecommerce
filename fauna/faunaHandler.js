@@ -77,12 +77,13 @@ function addProduct(productId) {
 			client.addNewProduct(productId);
 			return;
 		}
-	};
+	}
 	clients.push(new FaunaProductListener(productUpdates));
 	clients[clients.length -1].addNewProduct(productId);
 }
 
 function productUpdates(productId, name) {
+	if (productWithName[productId]) return;
 	productWithName[productId] = name;
 	productsChannel.publish('products', productWithName);
 }
