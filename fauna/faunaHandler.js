@@ -1,30 +1,8 @@
 const faunadb = require('faunadb');
 const Ably = require('ably');
-const FaunaProductListener = require('./productClient.js');
-const FaunaOrderListener = require('./orderClient.js');
-
-require('dotenv').config();
 
 const ablyClient = new Ably.Realtime(process.env.ABLY_API_KEY);
 const productsChannel = ablyClient.channels.get('app:products');
-const ordersChannel = ablyClient.channels.get('app:submit_order');
-
-// Adjust for how regularly automatic stock changes occur
-const RATE_OF_STOCK_CHANGE_SECONDS = 10;
-
-/* Listen for new order requests from clients */
-ordersChannel.subscribe((msg) => {
-	submitOrder(msg.name, msg.data);
-});
-
-/* We need scaling clients to avoid hitting Fauna connection limits */
-const clients = [];
-clients.push(new FaunaProductListener(productUpdates));
-const productWithName = {};
-
-const orderClients = [];
-orderClients.push(new FaunaOrderListener(orderUpdates));
-const allOrders = {};
 
 /* Setup Fauna client */
 const q = faunadb.query;
@@ -37,11 +15,18 @@ client = new faunadb.Client({
 });
 
 /* Product functions */
-client.query(q.Paginate(q.Documents(q.Collection('products'))))
+const allProducts = {};
+let allProductsQuery = q.Map(
+	q.Paginate(q.Documents(q.Collection('products'))),
+	q.Lambda(x => q.Get(x))
+);
+client.query(allProductsQuery)
 .then((products) => {
 	for (const product of products.data) {
-		addProduct(product.value.id);
+		const id = product.ref.value.id;
+		allProducts[id] = product.data.name;
 	}
+	productsChannel.publish('products', allProducts);
 })
 .catch((err) => console.error(
 	'Error: [%s] %s',
@@ -51,14 +36,20 @@ client.query(q.Paginate(q.Documents(q.Collection('products'))))
 
 function listenForProductChanges () {
 	const ref = q.Documents(q.Collection("products"));
-	let stream = client.stream.document(ref)
+	let stream = client.stream(ref)
 	.on('set', (set) => {
 		let productId = set.document.ref.value.id;
 		if (set.action == 'add') {
-			addProduct(productId);
+			client.query(
+				q.Get(q.Ref(q.Collection('products'), `${productId}`))
+			)
+			.then((product) => {
+				allProducts[productId] = product.data.name;
+				productsChannel.publish('products', allProducts);
+			});
 		} else {
-			delete productWithName[productId];
-			productsChannel.publish('products', productWithName);
+			delete allProducts[productId];
+			productsChannel.publish('products', allProducts);
 		}
 	})
 	.on('error', (error) => {
@@ -71,110 +62,6 @@ function listenForProductChanges () {
 }
 listenForProductChanges();
 
-function addProduct(productId) {
-	for (const client of clients) {
-		if (Object.keys(client.products).length < 50) {
-			client.addNewProduct(productId);
-			return;
-		}
-	}
-	clients.push(new FaunaProductListener(productUpdates));
-	clients[clients.length -1].addNewProduct(productId);
-}
-
-function productUpdates(productId, name) {
-	if (productWithName[productId]) return;
-	productWithName[productId] = name;
-	productsChannel.publish('products', productWithName);
-}
-
-/* Order functions */
-client.query(q.Paginate(q.Documents(q.Collection('orders'))))
-.then((orders) => {
-	for (const order of orders.data) {
-		addOrder(order.value.id);
-	}
-})
-.catch((err) => console.error(
-	'Error: [%s] %s',
-	err.name,
-	err.message
-));
-
-function listenForOrderChanges () {
-	const ref = q.Documents(q.Collection("orders"));
-	let stream = client.stream.document(ref)
-	.on('set', (set) => {
-		let orderId = set.document.ref.value.id;
-		if (set.action == 'add') {
-			addOrder(orderId);
-		}
-	})
-	.on('error', (error) => {
-		console.log('Error:', error);
-		stream.close();
-		setTimeout(() => { listenForOrderChanges() }, 1000);
-	})
-	.start();
-	return stream;
-}
-listenForOrderChanges();
-
-function addOrder(orderId) {
-	for (const client of orderClients) {
-		if (Object.keys(client.orders).length < 50) {
-			client.addNewOrder(orderId);
-			return;
-		}
-	};
-	orderClients.push(new FaunaOrderListener(orderUpdates));
-	orderClients[orderClients.length -1].addNewOrder(orderId);
-}
-
-function orderUpdates(orderId, order) {
-	const userId = order.customer.value.id;
-	if (!allOrders[userId]) allOrders[userId] = [];
-	allOrders[userId].push(orderId);
-	ablyClient.channels.get(`app:orders:${userId}`).publish(`order`, allOrders[userId]);
-}
-
-function submitOrder(customerId, orders) {
-	client.query(
-	  q.Call('submit_order', customerId, orders)
-	)
-	.then((ret) => console.log(ret))
-	.catch((err) => console.error(
-	  'Error: [%s] %s: %s',
-	  err.name,
-	  err.message,
-	  err.errors()[0].description,
-	));
-}
-let stockChange = 10;
-function incrementStock(quantity) {
-	let productsToIncrement = [];
-	for (const key in productWithName) {
-		productsToIncrement.push({ productId: key, quantity: quantity });
-	}
-	client.query(
-		q.Call('increment_stock', productsToIncrement)
-	  )
-	  .then((ret) => console.log(ret))
-	  .catch((err) => console.error(
-		'Error: [%s] %s: %s',
-		err.name,
-		err.message,
-		err.errors()[0].description,
-	  ))
-}
-setInterval(() => { 
-	if (stockChange > 0) {
-		stockChange = 0 - stockChange + Math.floor(Math.random() * 10);
-	} else {
-		stockChange = 10;
-	}
-	incrementStock(stockChange);
-}, RATE_OF_STOCK_CHANGE_SECONDS * 1000);
 
 /* Customer functions */
 async function createOrFindCustomer(username) {
@@ -213,11 +100,102 @@ async function createOrFindCustomer(username) {
 async function getCustomerIdByUsername(username) {
 	// Uniqueness requirement should mean there's only 1 user with the username
 	return await new Promise(r=> {
-		client.paginate(q.Match(q.Index('customers_by_username'), username))
-		.each(function(page) {
-			r(page[0].value.id);
+		client.query(
+			q.Get(q.Match(q.Index('customers_by_username'), username))
+		).then(function(response) {
+			r(response.ref.value.id);
+		}).catch(function(err) {
+			console.log(err);
 		});
 	});
 }
 
-module.exports = { createOrFindCustomer };
+
+const ordersChannel = ablyClient.channels.get('app:submit_order');
+
+/* Listen for new order requests from clients */
+ordersChannel.subscribe((msg) => {
+	submitOrder(msg.clientId, msg.data);
+});
+
+async function submitOrder(customerId, orders) {
+	client.query(
+	  q.Call('submit_order', customerId, orders)
+	)
+	.then((ret) => {
+		// Publish to decrement product value
+		// Publish to create order
+		const publicOrder = (({ customer, cart, status, creationDate, deliveryAddress }) => 
+		({ 
+			customer, cart, status, creationDate, deliveryAddress 
+		}))(ret.data);
+	
+		let userId = ret.data.customer.value.id;
+		let orderId = ret.ref.value.id;
+		ablyClient.channels.get(`app:order:${userId}:${orderId}`).publish('order', publicOrder);
+	})
+	.catch((err) => {
+		console.log(err);
+		console.error(
+	  'Error: [%s] %s: %s',
+	  err.name,
+	  err.message,
+	  err.errors()[0].description,
+	)}
+	);
+}
+
+
+/* Order functions */
+const allOrders = {};
+
+let allOrdersQuery = q.Map(
+	q.Paginate(q.Documents(q.Collection('orders'))),
+	q.Lambda(x => q.Get(x))
+);
+client.query(allOrdersQuery)
+.then((orders) => {
+	for (const order of orders.data) {
+		const orderId = order.ref.value.id;
+		const customerId = order.data.customer.id;
+		if (!allOrders[customerId]) allOrders[customerId] = [];
+		allOrders[customerId].push(orderId);
+	}
+	for (const [customerId, orders] of Object.entries(allOrders)) {
+		ablyClient.channels.get(`app:orders:${customerId}`).publish(`order`, orders);
+	}
+})
+.catch((err) => console.error(
+	'Error: [%s] %s',
+	err.name,
+	err.message
+));
+
+function listenForOrderChanges () {
+	const ref = q.Documents(q.Collection("orders"));
+	let stream = client.stream(ref)
+	.on('set', (set) => {
+		let orderId = set.document.ref.value.id;
+		if (set.action == 'add') {
+			client.query(
+				q.Get(q.Ref(q.Collection('orders'), `${orderId}`))
+			)
+			.then((order) => {
+				const customerId = order.data.customer.value.id;
+				if (!allOrders[customerId]) allOrders[customerId] = [];
+				allOrders[customerId].push(orderId);
+				ablyClient.channels.get(`app:orders:${customerId}`).publish(`order`, allOrders[customerId]);
+			});
+		}
+	})
+	.on('error', (error) => {
+		console.log('Error:', error);
+		stream.close();
+		setTimeout(() => { listenForOrderChanges() }, 1000);
+	})
+	.start();
+	return stream;
+}
+listenForOrderChanges();
+
+module.exports = createOrFindCustomer;
