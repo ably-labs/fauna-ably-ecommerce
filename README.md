@@ -32,6 +32,16 @@ CreateIndex({
 })
 ```
 
+In addition, we will need an Index to reflect all the Products, so we can use a stream to observe whenever there's a change. Run the following in the shell as well:
+
+```sh
+CreateIndex({
+  name: "products_by_ts",
+  source: Collection("products"),
+  values: [{ field: "ts" }]
+})
+```
+
 Finally, we will be creating an additional function in Fauna to allow us to make stock changes on items without risking dropping below 0 stock. This will be useful for simulating stock changing for customers, as though other customers were buying items and stock was coming back in.
 
 In the Functions tab of Fauna, create a new function called `increment_stock`, and add the following code to it:
