@@ -42,7 +42,10 @@
     </div>
   </main>
   <footer>
-    <p>Made with <a href="https://www.ably.com">Ably</a> and <a href="https://www.fauna.com">Fauna</a></p>
+    <p>Made with 
+      <a href="https://www.ably.com"><img src="/images/ably-logo.png" alt="Ably logo"></a> and
+      <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
+    </p>
   </footer>
 </body>
 <script type="text/javascript">
@@ -57,7 +60,6 @@
     productsContainer.innerHTML = '';
     products = msg.data;
     for (let productID in products) {
-      console.log(msg.data);
       let activeText = '';
       if (productID == productId) activeText = 'active';
       let item = document.createElement("li");

@@ -43,7 +43,10 @@
     </div>
   </main>
   <footer>
-    <p>Made with <a href="https://www.ably.com">Ably</a> and <a href="https://www.fauna.com">Fauna</a></p>
+    <p>Made with 
+      <a href="https://www.ably.com"><img src="/images/ably-logo.png" alt="Ably logo"></a> and
+      <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
+    </p>
   </footer>
 </body>
 
@@ -56,7 +59,6 @@
   const realtime = new Ably.Realtime({ authUrl: '/auth' });
   realtime.connection.on('connected', () => {
     customerId = realtime.auth.clientId;
-    console.log(`app:orders:${customerId}`);
     const ordersChannel = realtime.channels.get(`app:orders:${customerId}`, { params: { rewind: '1' } });
     ordersChannel.subscribe((msg) => {
       const ordersContainer = document.getElementById('orders');
@@ -123,5 +125,4 @@
   document.getElementById('panel-anonymous').setAttribute('style', "display: " + (loggedIn ? 'none' : 'flex'));
   document.getElementById('panel-logged-in').setAttribute('style', "display: " + (loggedIn ? 'inline' : 'none'));
 </script>
-
 </html>

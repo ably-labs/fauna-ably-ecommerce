@@ -25,6 +25,7 @@ client.query(allProductsQuery)
 	for (const product of products.data) {
 		const id = product.ref.value.id;
 		allProducts[id] = product.data.name;
+		ablyClient.channels.get(`app:product:${id}`).publish('update', product.data);
 	}
 	productsChannel.publish('products', allProducts);
 })
@@ -46,6 +47,7 @@ function listenForProductChanges () {
 			.then((product) => {
 				allProducts[productId] = product.data.name;
 				productsChannel.publish('products', allProducts);
+				ablyClient.channels.get(`app:product:${productId}`).publish('update', product);
 			});
 		} else {
 			delete allProducts[productId];
@@ -118,6 +120,12 @@ ordersChannel.subscribe((msg) => {
 	submitOrder(msg.clientId, msg.data);
 });
 
+
+const publicOrderConversion = (({ customer, cart, status, creationDate, deliveryAddress }) => 
+		({ 
+			customer, cart, status, creationDate, deliveryAddress 
+		}));
+
 async function submitOrder(customerId, orders) {
 	client.query(
 	  q.Call('submit_order', customerId, orders)
@@ -125,14 +133,23 @@ async function submitOrder(customerId, orders) {
 	.then((ret) => {
 		// Publish to decrement product value
 		// Publish to create order
-		const publicOrder = (({ customer, cart, status, creationDate, deliveryAddress }) => 
-		({ 
-			customer, cart, status, creationDate, deliveryAddress 
-		}))(ret.data);
+		const publicOrder = publicOrderConversion(ret.data);
 	
 		let userId = ret.data.customer.value.id;
 		let orderId = ret.ref.value.id;
 		ablyClient.channels.get(`app:order:${userId}:${orderId}`).publish('order', publicOrder);
+		
+		if (!allOrders[customerId]) allOrders[customerId] = [];
+		allOrders[customerId].push(orderId);
+		ablyClient.channels.get(`app:orders:${customerId}`).publish(`order`, allOrders[customerId]);
+		ret.data.cart.forEach((item) => {
+			client.query(
+				q.Get(q.Ref(q.Collection('products'), `${item.product.value.id}`))
+			)
+			.then((product) => {
+				ablyClient.channels.get(`app:product:${item.product.value.id}`).publish('update', product.data);
+			});
+		});
 	})
 	.catch((err) => {
 		console.log(err);
@@ -144,7 +161,6 @@ async function submitOrder(customerId, orders) {
 	)}
 	);
 }
-
 
 /* Order functions */
 const allOrders = {};
@@ -160,6 +176,8 @@ client.query(allOrdersQuery)
 		const customerId = order.data.customer.id;
 		if (!allOrders[customerId]) allOrders[customerId] = [];
 		allOrders[customerId].push(orderId);
+		const publicOrder = publicOrderConversion(order.data);
+		ablyClient.channels.get(`app:order:${customerId}:${orderId}`).publish('update', publicOrder);
 	}
 	for (const [customerId, orders] of Object.entries(allOrders)) {
 		ablyClient.channels.get(`app:orders:${customerId}`).publish(`order`, orders);
@@ -170,32 +188,5 @@ client.query(allOrdersQuery)
 	err.name,
 	err.message
 ));
-
-function listenForOrderChanges () {
-	const ref = q.Documents(q.Collection("orders"));
-	let stream = client.stream(ref)
-	.on('set', (set) => {
-		let orderId = set.document.ref.value.id;
-		if (set.action == 'add') {
-			client.query(
-				q.Get(q.Ref(q.Collection('orders'), `${orderId}`))
-			)
-			.then((order) => {
-				const customerId = order.data.customer.value.id;
-				if (!allOrders[customerId]) allOrders[customerId] = [];
-				allOrders[customerId].push(orderId);
-				ablyClient.channels.get(`app:orders:${customerId}`).publish(`order`, allOrders[customerId]);
-			});
-		}
-	})
-	.on('error', (error) => {
-		console.log('Error:', error);
-		stream.close();
-		setTimeout(() => { listenForOrderChanges() }, 1000);
-	})
-	.start();
-	return stream;
-}
-listenForOrderChanges();
 
 module.exports = createOrFindCustomer;
