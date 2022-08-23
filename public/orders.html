@@ -43,38 +43,35 @@
     </div>
   </main>
   <footer>
-    Made with
-    <a href="https://www.ably.com"><img src="/images/ably-logo.png" alt="Ably logo"></a> and
-    <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
+    <p>Made with 
+      <a href="https://www.ably.com"><img src="/images/ably-logo.png" alt="Ably logo"></a> and
+      <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
+    </p>
   </footer>
-
 </body>
 
 <script type="text/javascript">
   let orderId;
+  let orderChannel;
+  let orders;
   let customerId;
 
-  const cookiesValue = `; ${document.cookie}`;
-  const userIdParts = cookiesValue.split(`; userId=`);
-  if (userIdParts.length === 2) customerId = userIdParts.pop().split(';').shift();
-
   const realtime = new Ably.Realtime({ authUrl: '/auth' });
-  let orderChannel;
-
-  const ordersChannel = realtime.channels.get(`app:orders:${customerId}`, { params: { rewind: '1' } });
-
-  let orders;
-  ordersChannel.subscribe((msg) => {
-    const ordersContainer = document.getElementById('orders');
-    ordersContainer.innerHTML = '';
-    orders = msg.data;
-    for (let orderID of orders) {
-      let activeText = '';
-      if (orderId == orderID) activeText = 'active';
-      let item = document.createElement("li");
-      item.innerHTML = `<span id="orders-${orderID}" class="${activeText}" onclick="loadOrder('${orderID}')">${orderID}</span>`;
-      ordersContainer.appendChild(item);
-    }
+  realtime.connection.on('connected', () => {
+    customerId = realtime.auth.clientId;
+    const ordersChannel = realtime.channels.get(`app:orders:${customerId}`, { params: { rewind: '1' } });
+    ordersChannel.subscribe((msg) => {
+      const ordersContainer = document.getElementById('orders');
+      ordersContainer.innerHTML = '';
+      orders = msg.data;
+      for (let orderID of orders) {
+        let activeText = '';
+        if (orderId == orderID) activeText = 'active';
+        let item = document.createElement("li");
+        item.innerHTML = `<span id="orders-${orderID}" class="${activeText}" onclick="loadOrder('${orderID}')">${orderID}</span>`;
+        ordersContainer.appendChild(item);
+      }
+    });
   });
 
   function loadOrder(orderID) {
@@ -87,7 +84,6 @@
     orderId = orderID;
 
     if (orders) {
-      window.history.pushState('page2', orders[orderID], '?order=' + orderID);
       const activeSidebarItem = document.getElementsByClassName('active');
       for (let i=0; i < activeSidebarItem.length; i++) {
         activeSidebarItem[i].className = activeSidebarItem[0].className.replace("active", "");
@@ -123,16 +119,10 @@
       document.getElementById("total-price").textContent = totalPrice;
     });
   }
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('order')) {
-    let orderId = urlParams.get('order');
-    loadOrder(orderId);
-  }
 
   /* Hide or show the logged in / anonymous panels based on the session cookie */
   let loggedIn = document.cookie.indexOf('username') >= 0;
   document.getElementById('panel-anonymous').setAttribute('style', "display: " + (loggedIn ? 'none' : 'flex'));
   document.getElementById('panel-logged-in').setAttribute('style', "display: " + (loggedIn ? 'inline' : 'none'));
 </script>
-
 </html>

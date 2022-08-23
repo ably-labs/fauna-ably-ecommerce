@@ -1,5 +1,4 @@
 <html>
-
 <head>
   <script src="https://cdn.ably.io/lib/ably.min-1.js" type="text/javascript"></script>
   <link href='https://fonts.googleapis.com/css?family=Actor' rel='stylesheet'>
@@ -43,23 +42,16 @@
     </div>
   </main>
   <footer>
-    Made with
-    <a href="https://www.ably.com"><img src="/images/ably-logo.png" alt="Ably logo"></a> and
-    <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
+    <p>Made with 
+      <a href="https://www.ably.com"><img src="/images/ably-logo.png" alt="Ably logo"></a> and
+      <a href="https://www.fauna.com"><img src="/images/fauna-logo.svg" class="fauna" alt="Fauna logo"></a>
+    </p>
   </footer>
-
 </body>
-
 <script type="text/javascript">
   let productId;
-  let customerId;
-
-  const cookiesValue = `; ${document.cookie}`;
-  const userIdParts = cookiesValue.split(`; userId=`);
-  if (userIdParts.length === 2) customerId = userIdParts.pop().split(';').shift();
 
   const realtime = new Ably.Realtime({ authUrl: '/auth' });
-  let productChannel;
   const productsChannel = realtime.channels.get('app:products', { params: { rewind: '1' } });
 
   let products;
@@ -76,6 +68,7 @@
     }
   });
 
+  let productChannel;
   // Load a new product to display from Ably, and subscribe to any changes
   function loadProduct(productID) {
     document.getElementById("intro-section").style.display = "none";
@@ -120,11 +113,12 @@
     loadProduct(productId);
   }
 
+
   const orderChannel = realtime.channels.get('app:submit_order');
 
   function order() {
     // customer Id, order
-    orderChannel.publish(customerId, [
+    orderChannel.publish("order", [
       {
         "productId": productId,
         "quantity": 1
@@ -132,12 +126,10 @@
     ]);
   }
 
-  /* Hide or show the logged in / anonymous panels based on the session cookie */
   let loggedIn = document.cookie.indexOf('username') >= 0;
   document.getElementById('panel-anonymous').setAttribute('style', "display: " + (loggedIn ? 'none' : 'flex'));
   document.getElementById('panel-logged-in').setAttribute('style', "display: " + (loggedIn ? 'inline' : 'none'));
   document.getElementById('buy-button').setAttribute('style', "display: " + (loggedIn ? 'flex' : 'none'));
   document.getElementById('login-button-hint').setAttribute('style', "display: " + (loggedIn ? 'none' : 'block'));
 </script>
-
 </html>
