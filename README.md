@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> This project is no longer being maintained as of March 2026.
+
 # E-commerce demo using Ably and Fauna
 
 This demo shows a way of getting realtime updates and interactions for customers on an e-commerce site. Users are able to login, browse items, buy them, and view their historical orders. This is done by using Fauna as a database to reliably store and query items, and Ably to reliably distribute data to clients in realtime over WebSockets.
